@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>📋 Quản lý Quân nhân</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen">
+  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-xl md:text-2xl font-bold text-indigo-700">📋 Quản lý Quân nhân</h1>
+      <div class="flex items-center gap-2">
+        <a href="/download" class="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm md:text-base hover:bg-emerald-700">⬇️ Tải dữ liệu</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Upload -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+      <h2 class="text-base md:text-lg font-semibold text-slate-800 mb-3">📂 Tải lên file dữ liệu (JSON)</h2>
+      <form method="POST" action="/upload" enctype="multipart/form-data" class="flex flex-col gap-3">
+        <div>
+          <label class="text-sm font-medium text-slate-700">Chọn đơn vị gốc:</label>
+          <select name="unit_scope" required class="w-full md:w-auto px-3 py-2 border rounded-lg">
+            <option value="">-- Chọn --</option>
+            {% for code, name in {
+                "17.11.08.04.01.00.00":"Đại đội Bộ binh 9",
+                "17.11.08.04.02.00.00":"Đại đội Bộ binh 10",
+                "17.11.08.04.03.00.00":"Đại đội Bộ binh 11",
+                "17.11.08.04.04.00.00":"Đại đội Cối 82",
+                "17.11.08.04.05.00.00":"Tiểu đoàn bộ",
+                "17.11.08.04.06.00.00":"Bếp ăn",
+                "17.11.08.04.07.01.00":"Trung đội Thông tin",
+                "17.11.08.04.08.01.00":"Trung đội SPG-9",
+                "17.11.08.04.09.00.00":"Trung đội SMPK 12,7",
+                "17.11.08.04.10.00.00":"Tiểu đội Vận tải bộ"
+              }.items() %}
+              <option value="{{ code }}" {% if unit_scope == code %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex flex-col md:flex-row items-start md:items-center gap-3">
+          <input type="file" name="data_file" accept=".json" required class="w-full md:w-auto px-3 py-2 border rounded-lg">
+          <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">📤 Tải lên</button>
+        </div>
+      </form>
+      <p class="text-sm text-slate-500 mt-2">Phải chọn đơn vị gốc trước khi tải file dữ liệu. Mapping đơn vị con sẽ tự động giới hạn theo nhánh đó.</p>
+    </section>
+
+    {% if data is not none %}
+    <!-- Toolbar -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 space-y-4">
+      <div class="flex flex-col lg:flex-row gap-4 lg:items-end justify-between">
+        <!-- Filter -->
+        <form method="GET" action="/" class="flex items-center gap-3">
+          <label class="text-sm font-medium text-slate-700">Lọc theo đơn vị:</label>
+          <select name="don_vi" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg focus:ring focus:ring-indigo-300">
+            <option value="">-- Tất cả --</option>
+            {% for code, name in mapping.items() %}
+              <option value="{{ code }}" {% if filter_unit == code %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </form>
+
+        <!-- Search -->
+        <div class="w-full lg:w-96">
+          <input id="searchInput" type="text" placeholder="🔍 Tìm theo họ tên..."
+                 class="w-full px-4 py-2 rounded-lg border shadow-sm focus:ring-2 focus:ring-indigo-300">
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-xl border border-slate-200 p-4">
+          <div class="text-sm font-medium text-slate-600">Tổng số quân nhân hiển thị</div>
+          <div class="text-3xl font-bold text-indigo-700 mt-1">{{ total }}</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 p-4">
+          <div class="text-sm font-medium text-slate-600 mb-2">Thống kê theo đơn vị</div>
+          <ul class="divide-y max-h-56 overflow-y-auto">
+            {% for s in stats %}
+              <li class="py-2 flex items-center justify-between">
+                <span class="text-slate-800">{{ s.name }}</span>
+                <span class="font-semibold text-indigo-600">{{ s.count }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bulk update & Danh sách -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+      <form method="POST" action="/bulk_update" id="bulkForm" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+        <input type="hidden" name="filter_unit" id="bulk_filter_unit" value="{{ filter_unit }}">
+        <select name="don_vi" class="px-3 py-2 border rounded-lg">
+          {% for code, name in mapping.items() %}
+            <option value="{{ code }}">{{ name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+
+      {% if data %}
+      <div id="results" class="divide-y rounded-xl border border-slate-200 overflow-hidden">
+        {% for d in data %}
+        <div class="p-4 flex flex-col md:flex-row md:items-center md:justify-between hover:bg-slate-50">
+          <div class="flex items-start gap-3">
+            <input type="checkbox" name="ids" form="bulkForm" value="{{ d.id }}" class="mt-1">
+            <div>
+              <div class="text-base md:text-lg font-semibold text-slate-900">{{ d.personal_info.ho_chu_dem_ten }}</div>
+              <div class="text-sm text-slate-500">ID: {{ d.id }}</div>
+              <div class="text-sm">Đơn vị: <span class="font-medium text-indigo-700">{{ d.don_vi_name }}</span></div>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-3 md:mt-0">
+            <button type="button" onclick="openEditModal('{{ d.id }}', '{{ d.don_vi }}')"
+              class="px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Chỉnh sửa</button>
+            <form method="POST" action="/delete" onsubmit="return confirm('Xóa quân nhân này?')">
+              <input type="hidden" name="id" value="{{ d.id }}">
+              <input type="hidden" name="filter_unit" value="{{ filter_unit }}">
+              <button type="submit" class="px-3 py-2 text-sm rounded-lg bg-rose-600 text-white hover:bg-rose-700">Xóa</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="p-6 text-center text-slate-500 border rounded-xl">
+        🚫 Không có dữ liệu cho đơn vị đã chọn
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+  </main>
+
+  <!-- Modal chỉnh sửa -->
+  <div id="editModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-4">Cập nhật đơn vị</h3>
+      <form method="POST" action="/update" class="space-y-4">
+        <input type="hidden" name="id" id="edit_id">
+        <input type="hidden" name="filter_unit" value="{{ filter_unit }}">
+        <div>
+          <label class="text-sm font-medium text-slate-700">Đơn vị mới:</label>
+          <select name="don_vi" id="edit_don_vi" class="w-full px-3 py-2 border rounded-lg">
+            {% for code, name in mapping.items() %}
+              <option value="{{ code }}">{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 mt-4">
+          <button type="button" onclick="closeEditModal()" class="px-4 py-2 rounded-lg border border-slate-300">Hủy</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Cập nhật</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script>
+function openEditModal(id, don_vi) {
+  document.getElementById('edit_id').value = id;
+  document.getElementById('edit_don_vi').value = don_vi;
+  document.getElementById('editModal').classList.remove('hidden');
+}
+function closeEditModal() {
+  document.getElementById('editModal').classList.add('hidden');
+}
+
+// Search realtime
+document.getElementById('searchInput')?.addEventListener('input', async function() {
+  const q = this.value;
+  const unit = "{{ filter_unit }}";
+  const res = await fetch(`/search?q=${encodeURIComponent(q)}&don_vi=${encodeURIComponent(unit)}`);
+  const data = await res.json();
+  const resultsDiv = document.getElementById('results');
+  if(!resultsDiv) return;
+  resultsDiv.innerHTML = data.map(d => `
+    <div class="p-4 flex flex-col md:flex-row md:items-center md:justify-between hover:bg-slate-50">
+      <div class="flex items-start gap-3">
+        <input type="checkbox" name="ids" form="bulkForm" value="${d.id}" class="mt-1">
+        <div>
+          <div class="text-base md:text-lg font-semibold text-slate-900">${d.ho_chu_dem_ten}</div>
+          <div class="text-sm text-slate-500">ID: ${d.id}</div>
+          <div class="text-sm">Đơn vị: <span class="font-medium text-indigo-700">${d.don_vi_name}</span></div>
+        </div>
+      </div>
+    </div>
+  `).join('') || `<div class="p-6 text-center text-slate-500 border rounded-xl">🚫 Không có dữ liệu cho đơn vị đã chọn</div>`;
+});
+</script>
+</body>
+</html>
