@@ -107,7 +107,7 @@
         }
       },
       "created_at": "2025-08-30T17:36:39",
-      "don_vi": "17.11.08.04.01.01.00",
+      "don_vi": "17.11.08.04.01.06.00",
       "form_type": "form_01",
       "form_version": "1.0",
       "identity_documents": {
@@ -632,7 +632,7 @@
         }
       },
       "created_at": "2025-08-30T14:50:08",
-      "don_vi": "17.11.08.04.01.01.00",
+      "don_vi": "17.11.08.04.01.03.00",
       "education_info": {
         "nganh_nghe": {
           "dao_tao_cao_nhat": ""

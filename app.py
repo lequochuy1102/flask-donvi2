@@ -9,7 +9,6 @@ from flask import (
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
 
-# --------- Cấu hình ----------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -19,7 +18,6 @@ UNIT_SCOPE_PATH = os.path.join(UPLOAD_FOLDER, "unit_scope.json")
 MAPPING_FILE = os.path.join(BASE_DIR, "donvi_mapping.json")
 ALLOWED_EXTENSIONS = {"json"}
 
-# --------- Helpers ----------
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -61,7 +59,10 @@ def save_data(data: list) -> None:
         json.dump({"data": data}, f, ensure_ascii=False, indent=2)
 
 def get_soldier_id(d: dict) -> str:
-    return d.get("So_HSQ_BS") or d.get("So_CMSQ_CMQNCN_CMCCQP") or ""
+    # ép chuỗi và bỏ xuống dòng, khoảng trắng
+    sid = d.get("So_HSQ_BS") or d.get("So_CMSQ_CMQNCN_CMCCQP") or ""
+    return str(sid).strip()
+
 
 def get_soldier_name(d: dict) -> str:
     return d.get("personal_info", {}).get("ho_chu_dem_ten", "")
@@ -82,13 +83,15 @@ def enrich_and_filter(data: list, mapping: dict) -> list:
         code = d.get("don_vi", "")
         if code not in mapping:
             continue
-        d = dict(d)
-        d["id"] = get_soldier_id(d)
-        d["don_vi_name"] = mapping.get(code, code)
-        filtered.append(d)
+        dd = dict(d)
+        soldier_id = get_soldier_id(d)
+        # loại bỏ \n, khoảng trắng thừa
+        dd["id"] = str(soldier_id).strip()
+        dd["don_vi_name"] = mapping.get(code, code)
+        filtered.append(dd)
     return filtered
 
-# --------- Routes ----------
+
 @app.route("/", methods=["GET"])
 def index():
     mapping_all = load_mapping()
@@ -168,7 +171,7 @@ def search():
         results.append({
             "id": get_soldier_id(d),
             "ho_chu_dem_ten": get_soldier_name(d),
-            "don_vi": d.get("don_vi"),
+            "don_vi": d.get("don_vi") or "",
             "don_vi_name": mapping.get(d.get("don_vi", ""), d.get("don_vi", ""))
         })
 
@@ -177,7 +180,7 @@ def search():
 
 @app.route("/update", methods=["POST"])
 def update():
-    soldier_id = request.form.get("id") or ""
+    soldier_id = (request.form.get("id") or "").strip()
     new_don_vi = request.form.get("don_vi") or ""
     filter_unit = request.form.get("filter_unit") or ""
 
@@ -189,12 +192,18 @@ def update():
         return redirect(url_for("index", don_vi=filter_unit))
 
     data = load_data()
+    updated = False
     for d in data:
+        # ép lại id gốc để so sánh
         if get_soldier_id(d) == soldier_id:
             d["don_vi"] = new_don_vi
+            updated = True
             break
-    save_data(data)
+
+    if updated:
+        save_data(data)
     return redirect(url_for("index", don_vi=filter_unit))
+
 
 @app.route("/bulk_update", methods=["POST"])
 def bulk_update():
@@ -238,4 +247,4 @@ def download():
     )
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5005)), debug=True)
